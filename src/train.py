@@ -60,9 +60,9 @@ class StockModel:
 
     def create_model(self, input_shape):
         self.model = Sequential()
-        self.model.add(LSTM(units=100, return_sequences=True, input_shape=input_shape))
+        self.model.add(LSTM(units=200, return_sequences=True, input_shape=input_shape))
         self.model.add(Dropout(0.2))
-        self.model.add(LSTM(units=100, return_sequences=True))
+        self.model.add(LSTM(units=150, return_sequences=True))
         self.model.add(Dropout(0.2))
         self.model.add(LSTM(units=100))
         self.model.add(Dropout(0.2))
