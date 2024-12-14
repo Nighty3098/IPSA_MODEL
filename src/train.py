@@ -35,24 +35,31 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
-        if "Close" not in data.columns:
-            raise ValueError("The CSV file must contain a 'Close' column.")
+        # Проверяем наличие необходимых колонок
+        required_columns = ["Open", "Close", "High", "Low", "Adj Close", "Volume"]
+        for column in required_columns:
+            if column not in data.columns:
+                raise ValueError(f"The CSV file must contain a '{column}' column.")
 
-        data = data.dropna(subset=["Close"])
+        data = data.dropna(subset=["Close"])  # Удаляем строки с NaN в колонке Close
 
-        return data["Close"].values.reshape(-1, 1)
+        # Используем несколько колонок для предсказания
+        features = data[required_columns].values  # Используем все необходимые колонки
+
+        return features
 
     def prepare_data(self, data):
         self.scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = self.scaler.fit_transform(data)
 
         X, y = [], []
-        for i in range(60, len(scaled_data)):
-            X.append(scaled_data[i - 60 : i, 0])
-            y.append(1 if scaled_data[i, 0] > scaled_data[i - 1, 0] else 0)
+        for i in range(7, len(scaled_data)):
+            X.append(
+                scaled_data[i - 7 : i]
+            )  # Используем последние 60 дней всех признаков
+            y.append(scaled_data[i, 1])  # Предсказание на основе Close
 
         X, y = np.array(X), np.array(y)
-        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
         return X, y
 
@@ -69,26 +76,17 @@ class StockModel:
         self.model.add(LSTM(units=64))
         self.model.add(Dropout(0.2))
 
-        self.model.add(
-            Dense(
-                units=32,
-                activation="relu",
-                kernel_regularizer=tf.keras.regularizers.l2(0.01),
-            )
-        )
-        self.model.add(Dropout(0.2))
+        self.model.add(Dense(units=32, activation="relu"))
 
-        self.model.add(Dense(units=1, activation="sigmoid"))
+        # Изменение на Dense с одним выходом для регрессии
+        self.model.add(Dense(units=1))  # Без активации для регрессии
 
-        # Использование смешанной точности для ускорения обучения
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
-        # Установка политики смешанной точности
-        policy = tf.keras.mixed_precision.Policy("mixed_float16")
-        tf.keras.mixed_precision.set_global_policy(policy)
-
         self.model.compile(
-            optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"]
+            optimizer=optimizer,
+            loss="mean_squared_error",  # Используем MSE для регрессии
+            metrics=["mean_absolute_error"],
         )
 
     def train_model(self):
@@ -99,7 +97,7 @@ class StockModel:
             if np.isnan(X).any() or np.isnan(y).any():
                 raise ValueError("Input data contains NaN values after preparation.")
 
-            self.create_model((X.shape[1], 1))
+            self.create_model((X.shape[1], X.shape[2]))
 
             early_stopping = EarlyStopping(
                 monitor="val_loss", patience=10, restore_best_weights=True
@@ -109,7 +107,6 @@ class StockModel:
             X_train, X_val = X[:split_index], X[split_index:]
             y_train, y_val = y[:split_index], y[split_index:]
 
-            # Увеличение размера пакета для более эффективного использования GPU
             batch_size = 64
 
             # Обучение модели с валидацией и ранней остановкой
