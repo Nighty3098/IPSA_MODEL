@@ -8,6 +8,7 @@ from keras.callbacks import EarlyStopping
 from keras.layers import LSTM, Dense, Dropout
 from keras.models import Sequential
 from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.regularizers import l2
 
 
 class StockModel:
@@ -28,6 +29,8 @@ class StockModel:
                 print(f"Using GPU: {gpus}")
             except RuntimeError as e:
                 print(f"Error setting up GPU: {e}")
+        else:
+            print("No GPU found. Using CPU.")
 
     def load_data(self):
         if not os.path.exists(self.csv_file):
@@ -53,33 +56,62 @@ class StockModel:
         scaled_data = self.scaler.fit_transform(data)
 
         X, y = [], []
-        for i in range(7, len(scaled_data)):
-            X.append(
-                scaled_data[i - 7 : i]
-            )  # Используем последние 60 дней всех признаков
-            y.append(scaled_data[i, 1])  # Предсказание на основе Close
+        time_steps = 30
+
+        for i in range(time_steps, len(scaled_data)):
+            X.append(scaled_data[i - time_steps : i])
+            y.append(scaled_data[i, 1])
 
         X, y = np.array(X), np.array(y)
+
+        X = np.reshape(X, (X.shape[0], X.shape[1], data.shape[1]))
 
         return X, y
 
     def create_model(self, input_shape):
         self.model = Sequential()
 
-        # Увеличение количества нейронов и слоев с L2 регуляризацией
-        self.model.add(LSTM(units=256, return_sequences=True, input_shape=input_shape))
+        self.model.add(
+            LSTM(
+                units=512,
+                return_sequences=True,
+                input_shape=input_shape,
+                kernel_regularizer=l2(0.01),
+            )
+        )
+        self.model.add(Dropout(0.5))
+
+        self.model.add(
+            LSTM(
+                units=256,
+                return_sequences=True,
+            )
+        )
+        self.model.add(Dropout(0.3))
+
+        self.model.add(
+            LSTM(
+                units=128,
+                return_sequences=True,
+            )
+        )
         self.model.add(Dropout(0.2))
 
-        self.model.add(LSTM(units=128, return_sequences=True))
-        self.model.add(Dropout(0.2))
+        self.model.add(
+            LSTM(
+                units=64,
+            )
+        )
+        self.model.add(Dropout(0.1))
 
-        self.model.add(LSTM(units=64))
-        self.model.add(Dropout(0.2))
+        self.model.add(
+            Dense(
+                units=32,
+                activation="relu",
+            )
+        )
 
-        self.model.add(Dense(units=32, activation="relu"))
-
-        # Изменение на Dense с одним выходом для регрессии
-        self.model.add(Dense(units=1))  # Без активации для регрессии
+        self.model.add(Dense(units=1))
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
@@ -100,14 +132,14 @@ class StockModel:
             self.create_model((X.shape[1], X.shape[2]))
 
             early_stopping = EarlyStopping(
-                monitor="val_loss", patience=10, restore_best_weights=True
+                monitor="val_loss", patience=1, restore_best_weights=True
             )
 
             split_index = int(len(X) * 0.8)
             X_train, X_val = X[:split_index], X[split_index:]
             y_train, y_val = y[:split_index], y[split_index:]
 
-            batch_size = 64
+            batch_size = 30
 
             # Обучение модели с валидацией и ранней остановкой
             self.model.fit(
