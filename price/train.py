@@ -5,12 +5,25 @@ import matplotlib.pyplot as plt  # Импортируем Matplotlib для по
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from keras.callbacks import EarlyStopping
-from keras.layers import LSTM, Dense, Dropout, Embedding
+from keras.callbacks import (  # Импортируем Callback для пользовательского колбэка
+    Callback, EarlyStopping)
+from keras.layers import LSTM, Dense, Dropout
 from keras.models import Sequential
-from keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.regularizers import l2
+
+
+class TimeHistory(Callback):
+    """Класс для отслеживания времени обучения каждой эпохи."""
+
+    def on_train_begin(self, logs=None):
+        self.times = []
+
+    def on_epoch_begin(self, epoch, logs=None):
+        self.epoch_start_time = tf.timestamp()
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.times.append(tf.timestamp() - self.epoch_start_time)
 
 
 class StockModel:
@@ -19,8 +32,8 @@ class StockModel:
         self.model = None
         self.scaler = None
 
-        # Настройка использования GPU
         self.setup_gpu()
+        self.setup_threading()
 
     def setup_gpu(self):
         gpus = tf.config.list_physical_devices("GPU")
@@ -28,11 +41,20 @@ class StockModel:
             try:
                 for gpu in gpus:
                     tf.config.experimental.set_memory_growth(gpu, True)
+
                 print(f"Using GPU: {gpus}")
             except RuntimeError as e:
                 print(f"Error setting up GPU: {e}")
         else:
             print("No GPU found. Using CPU.")
+
+    def setup_threading(self):
+        tf.config.threading.set_inter_op_parallelism_threads(
+            19
+        )  # Количество потоков для параллельных операций
+        tf.config.threading.set_intra_op_parallelism_threads(
+            19
+        )  # Количество потоков для операций в рамках одного графа
 
     def load_data(self):
         if not os.path.exists(self.csv_file):
@@ -136,20 +158,27 @@ class StockModel:
             X_train, X_val = X[:split_index], X[split_index:]
             y_train, y_val = y[:split_index], y[split_index:]
 
-            batch_size = 100
+            batch_size = 5
+
+            time_history = (
+                TimeHistory()
+            )  # Создаем экземпляр класса для отслеживания времени
 
             # Обучение модели с валидацией и ранней остановкой
             history = self.model.fit(
                 X_train,
                 y_train,
                 validation_data=(X_val, y_val),
-                epochs=300,
+                epochs=500,
                 batch_size=batch_size,
-                callbacks=[early_stopping],
+                callbacks=[early_stopping, time_history],
             )
 
             # Построение графиков обучения
             self.plot_training_history(history)
+
+            # Построение графика времени обучения
+            self.plot_training_time(time_history.times)
 
             model_save_path = os.path.join("stock_model.keras")
             scaler_save_path = os.path.join("scaler.save")
@@ -163,7 +192,6 @@ class StockModel:
     def plot_training_history(self, history):
         """Функция для построения графиков обучения."""
 
-        # График потерь
         plt.figure(figsize=(14, 5))
 
         # Потери на обучении и валидации
@@ -187,6 +215,18 @@ class StockModel:
 
         plt.legend()
         plt.savefig("training_history.png")
+
+    def plot_training_time(self, times):
+        """Функция для построения графика времени обучения."""
+
+        epochs = range(1, len(times) + 1)
+        plt.figure(figsize=(10, 5))
+        plt.plot(epochs, times)
+        plt.title("Training Time per Epoch")
+        plt.xlabel("Epochs")
+        plt.ylabel("Time (seconds)")
+        plt.grid()
+        plt.savefig("training_time.png")  # Сохранение графика времени в файл
 
 
 if __name__ == "__main__":

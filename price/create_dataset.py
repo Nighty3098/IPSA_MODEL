@@ -7,7 +7,7 @@ import yfinance as yf
 
 def create_dataset(tickers):
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365 * 15)
+    start_date = end_date - timedelta(days=365 * 10)
 
     all_data = []
 
