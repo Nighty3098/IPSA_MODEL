@@ -158,7 +158,7 @@ class StockModel:
             X_train, X_val = X[:split_index], X[split_index:]
             y_train, y_val = y[:split_index], y[split_index:]
 
-            batch_size = 5
+            batch_size = 30
 
             time_history = (
                 TimeHistory()
@@ -169,7 +169,7 @@ class StockModel:
                 X_train,
                 y_train,
                 validation_data=(X_val, y_val),
-                epochs=500,
+                epochs=100,
                 batch_size=batch_size,
                 callbacks=[early_stopping, time_history],
             )
