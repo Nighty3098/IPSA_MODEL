@@ -1,21 +1,18 @@
 import os
 
 import joblib
-import matplotlib.pyplot as plt  # Импортируем Matplotlib для построения графиков
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from keras.callbacks import (  # Импортируем Callback для пользовательского колбэка
-    Callback, EarlyStopping)
-from keras.layers import LSTM, Dense, Dropout
-from keras.models import Sequential
+from keras.callbacks import Callback, EarlyStopping
+from keras.layers import GRU, LSTM, Dense, Dropout, Input
+from keras.models import Model, Sequential
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.regularizers import l2
 
 
 class TimeHistory(Callback):
-    """Класс для отслеживания времени обучения каждой эпохи."""
-
     def on_train_begin(self, logs=None):
         self.times = []
 
@@ -27,10 +24,11 @@ class TimeHistory(Callback):
 
 
 class StockModel:
-    def __init__(self, csv_file):
+    def __init__(self, csv_file, model_type="LSTM"):
         self.csv_file = csv_file
         self.model = None
         self.scaler = None
+        self.model_type = model_type  # Добавляем параметр для выбора типа модели
 
         self.setup_gpu()
         self.setup_threading()
@@ -49,12 +47,8 @@ class StockModel:
             print("No GPU found. Using CPU.")
 
     def setup_threading(self):
-        tf.config.threading.set_inter_op_parallelism_threads(
-            19
-        )  # Количество потоков для параллельных операций
-        tf.config.threading.set_intra_op_parallelism_threads(
-            19
-        )  # Количество потоков для операций в рамках одного графа
+        tf.config.threading.set_inter_op_parallelism_threads(19)
+        tf.config.threading.set_intra_op_parallelism_threads(19)
 
     def load_data(self):
         if not os.path.exists(self.csv_file):
@@ -62,16 +56,14 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
-        # Проверяем наличие необходимых колонок
         required_columns = ["Open", "Close", "High", "Low", "Adj Close", "Volume"]
         for column in required_columns:
             if column not in data.columns:
                 raise ValueError(f"The CSV file must contain a '{column}' column.")
 
-        data = data.dropna(subset=["Close"])  # Удаляем строки с NaN в колонке Close
+        data = data.dropna(subset=["Close"])
 
-        # Используем несколько колонок для предсказания
-        features = data[required_columns].values  # Используем все необходимые колонки
+        features = data[required_columns].values
 
         return features
 
@@ -80,7 +72,7 @@ class StockModel:
         scaled_data = self.scaler.fit_transform(data)
 
         X, y = [], []
-        time_steps = 30  # Можно уменьшить количество временных шагов
+        time_steps = 10
 
         for i in range(time_steps, len(scaled_data)):
             X.append(scaled_data[i - time_steps : i])
@@ -95,48 +87,58 @@ class StockModel:
     def create_model(self, input_shape):
         self.model = Sequential()
 
-        # Уменьшение количества нейронов в слоях для ускорения обучения
-        self.model.add(
-            LSTM(
-                units=256,
-                return_sequences=True,
-                input_shape=input_shape,
-                kernel_regularizer=l2(0.01),
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=512,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.01),
+                )
             )
-        )
+        elif self.model_type == "GRU":
+            self.model.add(
+                GRU(
+                    units=512,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.01),
+                )
+            )
+        else:
+            raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
+
         self.model.add(Dropout(0.3))
 
-        self.model.add(
-            LSTM(
-                units=128,
-                return_sequences=True,
-            )
-        )
+        if self.model_type == "LSTM":
+            self.model.add(LSTM(units=256, return_sequences=True))
+        else:
+            self.model.add(GRU(units=256, return_sequences=True))
+
         self.model.add(Dropout(0.2))
 
-        self.model.add(
-            LSTM(
-                units=64,
-            )
-        )
+        if self.model_type == "LSTM":
+            self.model.add(LSTM(units=128, return_sequences=True))
+        else:
+            self.model.add(GRU(units=128, return_sequences=True))
+
+        self.model.add(Dropout(0.2))
+
+        if self.model_type == "LSTM":
+            self.model.add(LSTM(units=64))
+        else:
+            self.model.add(GRU(units=64))
+
         self.model.add(Dropout(0.1))
 
-        self.model.add(
-            Dense(
-                units=32,
-                activation="relu",
-            )
-        )
-
+        self.model.add(Dense(units=32, activation="relu"))
         self.model.add(Dense(units=1))
 
-        optimizer = tf.keras.optimizers.Adam(
-            learning_rate=0.0001
-        )  # Увеличиваем скорость обучения
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
 
         self.model.compile(
             optimizer=optimizer,
-            loss="mean_squared_error",  # Используем MSE для регрессии
+            loss="mean_squared_error",
             metrics=["mean_absolute_error"],
         )
 
@@ -158,26 +160,20 @@ class StockModel:
             X_train, X_val = X[:split_index], X[split_index:]
             y_train, y_val = y[:split_index], y[split_index:]
 
-            batch_size = 30
+            batch_size = 5
 
-            time_history = (
-                TimeHistory()
-            )  # Создаем экземпляр класса для отслеживания времени
+            time_history = TimeHistory()
 
-            # Обучение модели с валидацией и ранней остановкой
             history = self.model.fit(
                 X_train,
                 y_train,
                 validation_data=(X_val, y_val),
-                epochs=100,
+                epochs=30,
                 batch_size=batch_size,
                 callbacks=[early_stopping, time_history],
             )
 
-            # Построение графиков обучения
             self.plot_training_history(history)
-
-            # Построение графика времени обучения
             self.plot_training_time(time_history.times)
 
             model_save_path = os.path.join("stock_model.keras")
@@ -190,11 +186,8 @@ class StockModel:
             return False
 
     def plot_training_history(self, history):
-        """Функция для построения графиков обучения."""
-
         plt.figure(figsize=(14, 5))
 
-        # Потери на обучении и валидации
         plt.subplot(1, 2, 1)
         plt.plot(history.history["loss"], label="Training Loss")
         plt.plot(history.history["val_loss"], label="Validation Loss")
@@ -204,7 +197,6 @@ class StockModel:
         plt.ylabel("Loss")
         plt.legend()
 
-        # MAE на обучении и валидации
         plt.subplot(1, 2, 2)
         plt.plot(history.history["mean_absolute_error"], label="Training MAE")
         plt.plot(history.history["val_mean_absolute_error"], label="Validation MAE")
@@ -217,8 +209,6 @@ class StockModel:
         plt.savefig("training_history.png")
 
     def plot_training_time(self, times):
-        """Функция для построения графика времени обучения."""
-
         epochs = range(1, len(times) + 1)
         plt.figure(figsize=(10, 5))
         plt.plot(epochs, times)
@@ -226,12 +216,13 @@ class StockModel:
         plt.xlabel("Epochs")
         plt.ylabel("Time (seconds)")
         plt.grid()
-        plt.savefig("training_time.png")  # Сохранение графика времени в файл
+        plt.savefig("training_time.png")
 
 
 if __name__ == "__main__":
     csv_file_path = os.path.join("combined_stock_data.csv")
-    stock_model = StockModel(csv_file_path)
+    model_type = "GRU"  # Выбор типа модели: 'LSTM' или 'GRU'
+    stock_model = StockModel(csv_file_path, model_type)
     success = stock_model.train_model()
     if success:
         print("Model trained and saved successfully.")
