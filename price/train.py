@@ -108,26 +108,26 @@ class StockModel:
         else:
             raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
 
-        self.model.add(Dropout(0.3))
+        self.model.add(Dropout(0.4))
         
         if self.model_type == "LSTM":
-            self.model.add(LSTM(units=512, return_sequences=True))
+            self.model.add(LSTM(units=512, return_sequences=True, kernel_regularizer=l2(0.01)))
         else:
-            self.model.add(GRU(units=512, return_sequences=True))
+            self.model.add(GRU(units=512, return_sequences=True, kernel_regularizer=l2(0.01)))
+
+        self.model.add(Dropout(0.3))
+
+        if self.model_type == "LSTM":
+            self.model.add(LSTM(units=256, return_sequences=True, kernel_regularizer=l2(0.01)))
+        else:
+            self.model.add(GRU(units=256, return_sequences=True, kernel_regularizer=l2(0.01)))
 
         self.model.add(Dropout(0.2))
 
         if self.model_type == "LSTM":
-            self.model.add(LSTM(units=256, return_sequences=True))
+            self.model.add(LSTM(units=128, return_sequences=True, kernel_regularizer=l2(0.01)))
         else:
-            self.model.add(GRU(units=256, return_sequences=True))
-
-        self.model.add(Dropout(0.2))
-
-        if self.model_type == "LSTM":
-            self.model.add(LSTM(units=128, return_sequences=True))
-        else:
-            self.model.add(GRU(units=128, return_sequences=True))
+            self.model.add(GRU(units=128, return_sequences=True, kernel_regularizer=l2(0.01)))
 
         self.model.add(Dropout(0.2))
 
@@ -228,7 +228,7 @@ class StockModel:
 
 if __name__ == "__main__":
     csv_file_path = os.path.join("combined_stock_data.csv")
-    model_type = "GRU"  # Выбор типа модели: 'LSTM' или 'GRU'
+    model_type = "LSTM"  # Выбор типа модели: 'LSTM' или 'GRU'
     stock_model = StockModel(csv_file_path, model_type)
     success = stock_model.train_model()
     if success:
