@@ -15,11 +15,7 @@ def create_dataset(tickers):
         print(f"Downloading data for {ticker}...")
         data = yf.download(ticker, start=start_date, end=end_date.strftime("%Y-%m-%d"))
 
-        # Create a new column for the ticker symbol
-        data['Ticker'] = ticker
-
-        # Convert the ticker symbol to a categorical value
-        data['Ticker'] = data['Ticker'].astype('category')
+        data["Ticker"] = ticker
 
         print(data)
 
