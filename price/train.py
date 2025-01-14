@@ -58,16 +58,22 @@ class StockModel:
 
         numerical_columns = ['Open', 'Close', 'High', 'Low', 'Volume']
         categorical_columns = ['Ticker']
+        date_columns = ['Date']
 
+        # Convert numerical columns to float
         data[numerical_columns] = data[numerical_columns].apply(pd.to_numeric, errors='coerce')
 
+        # Convert categorical columns to category
         data[categorical_columns] = data[categorical_columns].astype('category')
+
+        # Convert date columns to datetime
+        data[date_columns] = data[date_columns].apply(pd.to_datetime)
 
         return data
 
     def prepare_data(self, data):
         self.scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = self.scaler.fit_transform(data)
+        scaled_data = self.scaler.fit_transform(data.drop('Date', axis=1))
 
         X, y = [], []
         time_steps = 10
@@ -78,7 +84,7 @@ class StockModel:
 
         X, y = np.array(X), np.array(y)
 
-        X = np.reshape(X, (X.shape[0], X.shape[1], data.shape[1]))
+        X = np.reshape(X, (X.shape[0], X.shape[1], data.drop('Date', axis=1).shape[1]))
 
         return X, y
 
