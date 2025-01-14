@@ -7,7 +7,7 @@ import yfinance as yf
 
 def create_dataset(tickers):
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365 * 10)
+    start_date = end_date - timedelta(days=365 * 15)
 
     all_data = []
 
@@ -17,8 +17,10 @@ def create_dataset(tickers):
 
         data["Ticker"] = ticker
 
+        print(data)
+
         all_data.append(
-            data[["Open", "Close", "Ticker", "High", "Low", "Adj Close", "Volume"]]
+            data[["Open", "Close", "Ticker", "High", "Low", "Volume"]]
         )
 
     combined_data = pd.concat(all_data)
@@ -26,7 +28,6 @@ def create_dataset(tickers):
     combined_data.reset_index(inplace=True)
 
     return combined_data
-
 
 tickers = [
     "AAPL",  # Apple Inc.
