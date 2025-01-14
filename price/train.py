@@ -56,7 +56,7 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
-        required_columns = ["Open", "Close", "High", "Low", "Adj Close", "Volume"]
+        required_columns = ["Open", "Close", "High", "Low", "Volume"]
         for column in required_columns:
             if column not in data.columns:
                 raise ValueError(f"The CSV file must contain a '{column}' column.")
@@ -90,7 +90,53 @@ class StockModel:
         if self.model_type == "LSTM":
             self.model.add(
                 LSTM(
+                    units=2048,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.02),
+                )
+            )
+        elif self.model_type == "GRU":
+            self.model.add(
+                GRU(
+                    units=2048,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.02),
+                )
+            )
+        else:
+            raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
+        
+        self.model.add(Dropout(0.3))
+
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
                     units=1024,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.01),
+                )
+            )
+        elif self.model_type == "GRU":
+            self.model.add(
+                GRU(
+                    units=1024,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.01),
+                )
+            )
+        else:
+            raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
+        
+        self.model.add(Dropout(0.3))
+
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=512,
                     return_sequences=True,
                     input_shape=input_shape,
                     kernel_regularizer=l2(0.01),
@@ -141,8 +187,9 @@ class StockModel:
         self.model.add(Dense(units=32, activation="relu"))
         self.model.add(Dense(units=1))
 
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+        self.model.add(Dense(units=1, activation='sigmoid'))
 
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
         self.model.compile(
             optimizer=optimizer,
             loss="mean_squared_error",
