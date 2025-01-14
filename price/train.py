@@ -56,16 +56,14 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
-        required_columns = ["Open", "Close", "High", "Low", "Volume"]
-        for column in required_columns:
-            if column not in data.columns:
-                raise ValueError(f"The CSV file must contain a '{column}' column.")
+        numerical_columns = ['Open', 'Close', 'High', 'Low', 'Volume']
+        categorical_columns = ['Ticker']
 
-        data = data.dropna(subset=["Close"])
+        data[numerical_columns] = data[numerical_columns].apply(pd.to_numeric, errors='coerce')
 
-        features = data[required_columns].values
+        data[categorical_columns] = data[categorical_columns].astype('category')
 
-        return features
+        return data
 
     def prepare_data(self, data):
         self.scaler = MinMaxScaler(feature_range=(0, 1))
