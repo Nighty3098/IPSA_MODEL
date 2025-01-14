@@ -56,6 +56,7 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
+        # Separate numerical and categorical columns
         numerical_columns = ['Open', 'Close', 'High', 'Low', 'Volume']
         categorical_columns = ['Ticker']
         date_columns = ['Date']
@@ -68,6 +69,9 @@ class StockModel:
 
         # Convert date columns to datetime
         data[date_columns] = data[date_columns].apply(pd.to_datetime)
+
+        # One-hot encode the categorical values
+        data = pd.get_dummies(data, columns=categorical_columns)
 
         return data
 
