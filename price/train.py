@@ -108,7 +108,7 @@ class StockModel:
         else:
             raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
         
-        self.model.add(Dropout(0.3))
+        self.model.add(Dropout(0.4))
 
         if self.model_type == "LSTM":
             self.model.add(
@@ -145,7 +145,7 @@ class StockModel:
         elif self.model_type == "GRU":
             self.model.add(
                 GRU(
-                    units=1024,
+                    units=512,
                     return_sequences=True,
                     input_shape=input_shape,
                     kernel_regularizer=l2(0.01),
@@ -154,28 +154,28 @@ class StockModel:
         else:
             raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
 
-        self.model.add(Dropout(0.4))
+        self.model.add(Dropout(0.3))
         
         if self.model_type == "LSTM":
             self.model.add(LSTM(units=512, return_sequences=True, kernel_regularizer=l2(0.01)))
         else:
             self.model.add(GRU(units=512, return_sequences=True, kernel_regularizer=l2(0.01)))
 
-        self.model.add(Dropout(0.3))
+        self.model.add(Dropout(0.2))
 
         if self.model_type == "LSTM":
             self.model.add(LSTM(units=256, return_sequences=True, kernel_regularizer=l2(0.01)))
         else:
             self.model.add(GRU(units=256, return_sequences=True, kernel_regularizer=l2(0.01)))
 
-        self.model.add(Dropout(0.2))
+        self.model.add(Dropout(0.1))
 
         if self.model_type == "LSTM":
             self.model.add(LSTM(units=128, return_sequences=True, kernel_regularizer=l2(0.01)))
         else:
             self.model.add(GRU(units=128, return_sequences=True, kernel_regularizer=l2(0.01)))
 
-        self.model.add(Dropout(0.2))
+        self.model.add(Dropout(0.1))
 
         if self.model_type == "LSTM":
             self.model.add(LSTM(units=64))
@@ -214,7 +214,7 @@ class StockModel:
             X_train, X_val = X[:split_index], X[split_index:]
             y_train, y_val = y[:split_index], y[split_index:]
 
-            batch_size = 5
+            batch_size = 10
 
             time_history = TimeHistory()
 
@@ -222,7 +222,7 @@ class StockModel:
                 X_train,
                 y_train,
                 validation_data=(X_val, y_val),
-                epochs=40,
+                epochs=200,
                 batch_size=batch_size,
                 callbacks=[early_stopping, time_history],
             )
