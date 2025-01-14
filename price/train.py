@@ -90,7 +90,7 @@ class StockModel:
         if self.model_type == "LSTM":
             self.model.add(
                 LSTM(
-                    units=512,
+                    units=1024,
                     return_sequences=True,
                     input_shape=input_shape,
                     kernel_regularizer=l2(0.01),
@@ -99,7 +99,7 @@ class StockModel:
         elif self.model_type == "GRU":
             self.model.add(
                 GRU(
-                    units=512,
+                    units=1024,
                     return_sequences=True,
                     input_shape=input_shape,
                     kernel_regularizer=l2(0.01),
@@ -109,6 +109,13 @@ class StockModel:
             raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
 
         self.model.add(Dropout(0.3))
+        
+        if self.model_type == "LSTM":
+            self.model.add(LSTM(units=512, return_sequences=True))
+        else:
+            self.model.add(GRU(units=512, return_sequences=True))
+
+        self.model.add(Dropout(0.2))
 
         if self.model_type == "LSTM":
             self.model.add(LSTM(units=256, return_sequences=True))
@@ -168,7 +175,7 @@ class StockModel:
                 X_train,
                 y_train,
                 validation_data=(X_val, y_val),
-                epochs=30,
+                epochs=40,
                 batch_size=batch_size,
                 callbacks=[early_stopping, time_history],
             )
