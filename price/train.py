@@ -56,28 +56,20 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
-        # Separate numerical and categorical columns
-        numerical_columns = ['Open', 'Close', 'High', 'Low', 'Volume']
-        categorical_columns = ['Ticker']
-        date_columns = ['Date']
+        required_columns = ["Open", "Close", "High", "Low", "Volume"]
+        for column in required_columns:
+            if column not in data.columns:
+                raise ValueError(f"The CSV file must contain a '{column}' column.")
 
-        # Convert numerical columns to float
-        data[numerical_columns] = data[numerical_columns].apply(pd.to_numeric, errors='coerce')
+        data = data.dropna(subset=["Close"])
 
-        # Convert categorical columns to category
-        data[categorical_columns] = data[categorical_columns].astype('category')
+        features = data[required_columns].values
 
-        # Convert date columns to datetime
-        data[date_columns] = data[date_columns].apply(pd.to_datetime)
-
-        # One-hot encode the categorical values
-        data = pd.get_dummies(data, columns=categorical_columns)
-
-        return data
+        return features
 
     def prepare_data(self, data):
         self.scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = self.scaler.fit_transform(data.drop('Date', axis=1))
+        scaled_data = self.scaler.fit_transform(data)
 
         X, y = [], []
         time_steps = 10
@@ -88,7 +80,7 @@ class StockModel:
 
         X, y = np.array(X), np.array(y)
 
-        X = np.reshape(X, (X.shape[0], X.shape[1], data.drop('Date', axis=1).shape[1]))
+        X = np.reshape(X, (X.shape[0], X.shape[1], data.shape[1]))
 
         return X, y
 
