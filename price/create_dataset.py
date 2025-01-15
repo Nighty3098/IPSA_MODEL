@@ -20,7 +20,7 @@ def create_dataset(tickers):
         print(data)
 
         all_data.append(
-            data[["Open", "Close", "Ticker", "High", "Low", "Volume"]]
+            data[["Open", "Close", "Ticker", "High", "Low", "Adj Close", "Volume"]]
         )
 
     combined_data = pd.concat(all_data)

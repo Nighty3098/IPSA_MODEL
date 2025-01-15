@@ -56,7 +56,7 @@ class StockModel:
 
         data = pd.read_csv(self.csv_file)
 
-        required_columns = ["Open", "Close", "High", "Low", "Volume"]
+        required_columns = ["Open", "Close", "High", "Low", "Adj Close", "Volume"]
         for column in required_columns:
             if column not in data.columns:
                 raise ValueError(f"The CSV file must contain a '{column}' column.")
