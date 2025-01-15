@@ -87,6 +87,26 @@ class StockModel:
     def create_model(self, input_shape):
         self.model = Sequential()
 
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=800,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        elif self.model_type == "GRU":
+            self.model.add(
+                GRU(
+                    units=800,
+                    return_sequences=True,
+                    input_shape=input_shape,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        self.model.add(Dropout(0.3))
+
         # Первый слой
         if self.model_type == "LSTM":
             self.model.add(
