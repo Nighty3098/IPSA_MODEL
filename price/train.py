@@ -87,59 +87,14 @@ class StockModel:
     def create_model(self, input_shape):
         self.model = Sequential()
 
-        if self.model_type == "LSTM":
-            self.model.add(
-                LSTM(
-                    units=2048,
-                    return_sequences=True,
-                    input_shape=input_shape,
-                    kernel_regularizer=l2(0.02),
-                )
-            )
-        elif self.model_type == "GRU":
-            self.model.add(
-                GRU(
-                    units=2048,
-                    return_sequences=True,
-                    input_shape=input_shape,
-                    kernel_regularizer=l2(0.02),
-                )
-            )
-        else:
-            raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
-        
-        self.model.add(Dropout(0.4))
-
-        if self.model_type == "LSTM":
-            self.model.add(
-                LSTM(
-                    units=1024,
-                    return_sequences=True,
-                    input_shape=input_shape,
-                    kernel_regularizer=l2(0.01),
-                )
-            )
-        elif self.model_type == "GRU":
-            self.model.add(
-                GRU(
-                    units=1024,
-                    return_sequences=True,
-                    input_shape=input_shape,
-                    kernel_regularizer=l2(0.01),
-                )
-            )
-        else:
-            raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
-        
-        self.model.add(Dropout(0.3))
-
+        # Первый слой
         if self.model_type == "LSTM":
             self.model.add(
                 LSTM(
                     units=512,
                     return_sequences=True,
                     input_shape=input_shape,
-                    kernel_regularizer=l2(0.01),
+                    kernel_regularizer=l2(0.001),  # Уменьшено значение L2
                 )
             )
         elif self.model_type == "GRU":
@@ -148,46 +103,52 @@ class StockModel:
                     units=512,
                     return_sequences=True,
                     input_shape=input_shape,
-                    kernel_regularizer=l2(0.01),
+                    kernel_regularizer=l2(0.001),  # Уменьшено значение L2
+                )
+            )
+        self.model.add(Dropout(0.3))  # Умеренное значение Dropout
+
+        # Второй слой
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=256,
+                    return_sequences=True,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        elif self.model_type == "GRU":
+            self.model.add(
+                GRU(
+                    units=256,
+                    return_sequences=True,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        self.model.add(Dropout(0.3))
+
+        # Третий слой
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=128,
+                    return_sequences=False,  # Последний слой не возвращает последовательности
+                    kernel_regularizer=l2(0.001),
                 )
             )
         else:
-            raise ValueError("Unsupported model type. Choose 'LSTM' or 'GRU'.")
-
-        self.model.add(Dropout(0.3))
-        
-        if self.model_type == "LSTM":
-            self.model.add(LSTM(units=512, return_sequences=True, kernel_regularizer=l2(0.01)))
-        else:
-            self.model.add(GRU(units=512, return_sequences=True, kernel_regularizer=l2(0.01)))
-
+            self.model.add(
+                GRU(
+                    units=128,
+                    return_sequences=False,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
         self.model.add(Dropout(0.2))
 
-        if self.model_type == "LSTM":
-            self.model.add(LSTM(units=256, return_sequences=True, kernel_regularizer=l2(0.01)))
-        else:
-            self.model.add(GRU(units=256, return_sequences=True, kernel_regularizer=l2(0.01)))
-
-        self.model.add(Dropout(0.1))
-
-        if self.model_type == "LSTM":
-            self.model.add(LSTM(units=128, return_sequences=True, kernel_regularizer=l2(0.01)))
-        else:
-            self.model.add(GRU(units=128, return_sequences=True, kernel_regularizer=l2(0.01)))
-
-        self.model.add(Dropout(0.1))
-
-        if self.model_type == "LSTM":
-            self.model.add(LSTM(units=64))
-        else:
-            self.model.add(GRU(units=64))
-
-        self.model.add(Dropout(0.1))
-
+        # Полносвязный слой
         self.model.add(Dense(units=32, activation="relu"))
-        self.model.add(Dense(units=1))
-
-        self.model.add(Dense(units=1, activation='sigmoid'))
+        self.model.add(Dense(units=1))  # Выходной слой
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
         self.model.compile(
