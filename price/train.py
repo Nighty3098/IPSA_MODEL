@@ -91,28 +91,28 @@ class StockModel:
         if self.model_type == "LSTM":
             self.model.add(
                 LSTM(
-                    units=512,
+                    units=200,
                     return_sequences=True,
                     input_shape=input_shape,
-                    kernel_regularizer=l2(0.001),  # Уменьшено значение L2
+                    kernel_regularizer=l2(0.001),
                 )
             )
         elif self.model_type == "GRU":
             self.model.add(
                 GRU(
-                    units=512,
+                    units=200,
                     return_sequences=True,
                     input_shape=input_shape,
-                    kernel_regularizer=l2(0.001),  # Уменьшено значение L2
+                    kernel_regularizer=l2(0.001),
                 )
             )
-        self.model.add(Dropout(0.3))  # Умеренное значение Dropout
+        self.model.add(Dropout(0.3))
 
         # Второй слой
         if self.model_type == "LSTM":
             self.model.add(
                 LSTM(
-                    units=256,
+                    units=200,
                     return_sequences=True,
                     kernel_regularizer=l2(0.001),
                 )
@@ -120,7 +120,7 @@ class StockModel:
         elif self.model_type == "GRU":
             self.model.add(
                 GRU(
-                    units=256,
+                    units=200,
                     return_sequences=True,
                     kernel_regularizer=l2(0.001),
                 )
@@ -131,7 +131,45 @@ class StockModel:
         if self.model_type == "LSTM":
             self.model.add(
                 LSTM(
-                    units=128,
+                    units=200,
+                    return_sequences=True,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        else:
+            self.model.add(
+                GRU(
+                    units=200,
+                    return_sequences=True,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        self.model.add(Dropout(0.3))
+
+        # Четвёртый слой
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=200,
+                    return_sequences=True,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        else:
+            self.model.add(
+                GRU(
+                    units=200,
+                    return_sequences=True,
+                    kernel_regularizer=l2(0.001),
+                )
+            )
+        self.model.add(Dropout(0.3))
+
+        # Пятый слой
+        if self.model_type == "LSTM":
+            self.model.add(
+                LSTM(
+                    units=200,
                     return_sequences=False,  # Последний слой не возвращает последовательности
                     kernel_regularizer=l2(0.001),
                 )
@@ -139,15 +177,22 @@ class StockModel:
         else:
             self.model.add(
                 GRU(
-                    units=128,
+                    units=200,
                     return_sequences=False,
                     kernel_regularizer=l2(0.001),
                 )
             )
         self.model.add(Dropout(0.2))
 
-        # Полносвязный слой
-        self.model.add(Dense(units=32, activation="relu"))
+        # Полносвязные слои
+        self.model.add(Dense(units=100, activation="relu"))
+        self.model.add(Dropout(0.2))
+        self.model.add(Dense(units=100, activation="relu"))
+        self.model.add(Dropout(0.2))
+        self.model.add(Dense(units=100, activation="relu"))
+        self.model.add(Dropout(0.2))
+
+        # Выходной слой
         self.model.add(Dense(units=1))  # Выходной слой
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
