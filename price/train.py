@@ -7,12 +7,13 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from keras.callbacks import Callback, EarlyStopping
-from keras.layers import GRU, LSTM, Dense, Dropout
+from keras.layers import LSTM, Dense, Dropout, BatchNormalization
 from keras.models import Sequential
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.regularizers import l2
 from keras.callbacks import ReduceLROnPlateau
 from keras.utils import plot_model
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,11 +28,13 @@ class TimeHistory(Callback):
         self.times.append(time.time() - self.epoch_start_time)
 
 class StockModel:
-    def __init__(self, csv_file, model_type="LSTM"):
+    def __init__(self, csv_file, target_column='Close', seq_length=60, train_size=0.8):
         self.csv_file = csv_file
+        self.target_column = target_column
+        self.seq_length = seq_length
+        self.train_size = train_size
         self.model = None
-        self.scaler = None
-        self.model_type = model_type
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
 
         self.setup_gpu()
         self.setup_threading()
@@ -56,125 +59,85 @@ class StockModel:
         if not os.path.exists(self.csv_file):
             raise FileNotFoundError(f"The file {self.csv_file} does not exist.")
 
-        data = pd.read_csv(self.csv_file)
-
-        required_columns = ["Open", "Close", "High", "Low", "Adj Close", "Volume"]
-        for column in required_columns:
-            if column not in data.columns:
-                raise ValueError(f"The CSV file must contain a '{column}' column.")
-
-        data = data.dropna(subset=["Close"])
-
-        features = data[required_columns].values
-
-        return features
+        data = pd.read_csv(self.csv_file, parse_dates=['Date'], index_col='Date')
+        if data.isnull().values.any():
+            logging.warning("Data contains missing values. Consider handling them before proceeding.")
+        return data
 
     def prepare_data(self, data):
-        self.scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = self.scaler.fit_transform(data)
+        feature_columns = [col for col in data.columns if col != 'Ticker']
+        features = data[feature_columns].values
+        target = data[[self.target_column]].values
 
-        X, y = [], []
-        time_steps = 10
+        # Normalize data
+        scaled_features = self.scaler.fit_transform(features)
+        scaled_target = self.scaler.fit_transform(target)
 
-        target_column_index = 1  # Например, 'Close' — целевая переменная
-        for i in range(time_steps, len(scaled_data)):
-            X.append(scaled_data[i - time_steps : i])
-            y.append(scaled_data[i, target_column_index])
+        def create_sequences(features, target, seq_length):
+            X, y = [], []
+            for i in range(seq_length, len(features)):
+                X.append(features[i-seq_length:i])
+                y.append(target[i, 0])
+            return np.array(X), np.array(y)
 
-        X, y = np.array(X), np.array(y)
-        X = np.reshape(X, (X.shape[0], X.shape[1], data.shape[1]))
+        train_size = int(len(scaled_features) * self.train_size)
+        train_features = scaled_features[:train_size]
+        test_features = scaled_features[train_size - self.seq_length:]
+        train_target = scaled_target[:train_size]
+        test_target = scaled_target[train_size - self.seq_length:]
 
-        return X, y
+        X_train, y_train = create_sequences(train_features, train_target, self.seq_length)
+        X_test, y_test = create_sequences(test_features, test_target, self.seq_length)
+
+        return X_train, y_train, X_test, y_test
 
     def create_model(self, input_shape):
         self.model = Sequential()
 
-        # Рассчитываем количество нейронов для каждого слоя
-        def calculate_units(input_size, output_size=1):
-            return int((2 / 3) * input_size) + output_size
+        # Optimized architecture
+        self.model.add(LSTM(128, return_sequences=True, input_shape=input_shape, kernel_regularizer=l2(0.01)))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.3))
+        
+        self.model.add(LSTM(64, return_sequences=True, kernel_regularizer=l2(0.01)))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.3))
+        
+        self.model.add(LSTM(32, return_sequences=False, kernel_regularizer=l2(0.01)))
+        self.model.add(BatchNormalization())
+        self.model.add(Dropout(0.3))
 
-        # Получаем количество фичей (input_size)
-        input_size = input_shape[1]
+        self.model.add(Dense( 32, activation='relu', kernel_regularizer=l2(0.01)))
+        self.model.add(Dropout(0.2))
+        self.model.add(Dense(1))
 
-        # Создаем слои с рассчитанным количеством нейронов
-        def add_rnn_layer(units, return_sequences):
-            if self.model_type == "LSTM":
-                self.model.add(LSTM(
-                    units=units,
-                    return_sequences=return_sequences,
-                    kernel_initializer='he_normal',
-                    kernel_regularizer=l2(0.001),
-                ))
-            elif self.model_type == "GRU":
-                self.model.add(GRU(
-                    units=units,
-                    return_sequences=return_sequences,
-                    kernel_initializer='he_normal',
-                    kernel_regularizer=l2(0.001),
-                ))
-            self.model.add(Dropout(0.2))
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+        self.model.compile(optimizer=optimizer, loss="mean_squared_error", metrics=["mean_absolute_error"])
 
-        # Добавляем слои с рассчитанным количеством нейронов
-        add_rnn_layer(units=calculate_units(input_size), return_sequences=True)
-        add_rnn_layer(units=calculate_units(input_size), return_sequences=True)
-        add_rnn_layer(units=calculate_units(input_size), return_sequences=True)
-        add_rnn_layer(units=calculate_units(input_size), return_sequences=True)
-        add_rnn_layer(units=calculate_units(input_size), return_sequences=False)
-
-        # Полносвязные слои
-        self.model.add(Dense(units=100, activation="relu"))
-        self.model.add(Dropout(0.1))
-        self.model.add(Dense(units=100, activation="relu"))
-        self.model.add(Dropout(0.1))
-        self.model.add(Dense(units=100, activation="relu"))
-        self.model.add(Dropout(0.1))
-
-        # Выходной слой
-        self.model.add(Dense(units=1))
-
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
-        self.model.compile(
-            optimizer=optimizer,
-            loss="mean_squared_error",
-            metrics=["mean_absolute_error"],
-        )
-
-        # Передаем модель на данные, чтобы она построилась
-        dummy_input = np.zeros((1, input_shape[0], input_shape[1]))
-        self.model.predict(dummy_input)
-
-        # Визуализация модели
+        # Visualize model
         plot_model(self.model, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
 
     def train_model(self):
         try:
             data = self.load_data()
-            X, y = self.prepare_data(data)
+            X_train, y_train, X_test, y_test = self.prepare_data(data)
 
-            if np.isnan(X).any() or np.isnan(y).any():
+            if np.isnan(X_train).any() or np.isnan(y_train).any():
                 raise ValueError("Input data contains NaN values after preparation.")
 
-            self.create_model((X.shape[1], X.shape[2]))
+            self.create_model((X_train.shape[1], X_train.shape[2]))
 
-            early_stopping = EarlyStopping(
-                monitor="val_loss", patience=50, restore_best_weights=True
-            )
-            lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, min_lr=1e-6)
-
-            split_index = int(len(X) * 0.8)
-            X_train, X_val = X[:split_index], X[split_index:]
-            y_train, y_val = y[:split_index], y[split_index:]
-
-            batch_size = 32
+            early_stopping = EarlyStopping(monitor="val_loss", patience=50, restore_best_weights=True)
+            lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=10, min_lr=1e-6)
 
             time_history = TimeHistory()
 
             history = self.model.fit(
                 X_train,
                 y_train,
-                validation_data=(X_val, y_val),
+                validation_data=(X_test, y_test),
                 epochs=1000,
-                batch_size=batch_size,
+                batch_size=32,
                 callbacks=[early_stopping, time_history, lr_scheduler],
             )
 
@@ -223,15 +186,46 @@ class StockModel:
         plt.grid()
         plt.savefig("training_time.png", dpi=300)
 
+    def evaluate_model(self, predictions, y_test):
+        """Evaluate the model using various metrics."""
+        y_test_actual = self.scaler.inverse_transform(y_test.reshape(-1, 1))
+
+        # Calculate metrics
+        mse = mean_squared_error(y_test_actual, predictions)
+        mae = mean_absolute_error(y_test_actual, predictions)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_test_actual, predictions)
+
+        # Percentage error (mean error in percentage)
+        mean_actual = np.mean(y_test_actual)
+        percentage_error = (rmse / mean_actual) * 100
+
+        # Output metrics
+        print(f"Mean Squared Error (MSE): {mse}")
+        print(f"Mean Absolute Error (MAE): {mae}")
+        print(f"Root Mean Squared Error (RMSE): {rmse}")
+        print(f"R² (Coefficient of determination): {r2}")
+        print(f"Average percentage error: {percentage_error:.2f}%")
+
+        return mse, mae, rmse, r2, percentage_error
+
 if __name__ == "__main__":
-    csv_file_path = os.path.join("combined_stock_data.csv")
+    csv_file_path = os.path.join("cleaned_stock_data.csv")  # Ensure the file path is correct
     if not os.path.exists(csv_file_path):
         raise FileNotFoundError(f"The file {csv_file_path} does not exist.")
 
-    model_type = "LSTM"  # Выбор типа модели: 'LSTM' или 'GRU'
-    stock_model = StockModel(csv_file_path, model_type)
+    stock_model = StockModel(csv_file_path)
+    
     success = stock_model.train_model()
     if success:
         logging.info("Model trained and saved successfully.")
-    else:
-        logging.error("Model training failed.")
+        
+        # Get test data y_test for evaluation
+        test_data = stock_model.load_data()
+        _, _, X_test, y_test = stock_model.prepare_data(test_data)
+        
+        if X_test is not None and y_test is not None:
+            predictions = stock_model.model.predict(X_test)
+            stock_model.evaluate_model(predictions, y_test)
+        else:
+            logging.error("Model training failed.")
