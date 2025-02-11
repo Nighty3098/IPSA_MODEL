@@ -92,8 +92,8 @@ class StockModel:
         X_train, y_train = create_sequences(scaled_features[:train_size], 
                                         scaled_target[:train_size], 
                                         self.seq_length)
-        X_test, y_test = create_sequences(scaled_features[train_size-self.seq_length:], 
-                                        scaled_target[train_size-self.seq_length:], 
+        X_test, y_test = create_sequences(scaled_features[train_size:], 
+                                        scaled_target[train_size:], 
                                         self.seq_length)
         
         return X_train, y_train, X_test, y_test
@@ -101,17 +101,19 @@ class StockModel:
     def create_model(self, input_shape):
         self.model = Sequential()
 
-        self.model.add(LSTM(64, return_sequences=True, input_shape=input_shape, 
-                          kernel_regularizer=l2(0.001)))
-        self.model.add(BatchNormalization())
-        self.model.add(Dropout(0.2))
-        
-        self.model.add(LSTM(32, return_sequences=False, 
-                          kernel_regularizer=l2(0.001)))
-        self.model.add(BatchNormalization())
+        self.model.add(LSTM(512, return_sequences=True, input_shape=input_shape))
         self.model.add(Dropout(0.2))
 
-        self.model.add(Dense(16, activation='relu'))
+        self.model.add(LSTM(256, return_sequences=True, input_shape=input_shape))
+        self.model.add(Dropout(0.2))
+
+        self.model.add(LSTM(128, return_sequences=True, input_shape=input_shape))
+        self.model.add(Dropout(0.2))
+
+        self.model.add(LSTM(64, return_sequences=True, input_shape=input_shape))
+        self.model.add(Dropout(0.2))
+
+        self.model.add(LSTM(32))
         self.model.add(Dense(1))
 
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
@@ -146,8 +148,8 @@ class StockModel:
                 X_train,
                 y_train,
                 validation_data=(X_test, y_test),
-                epochs=200,
-                batch_size=32,
+                epochs=400,
+                batch_size=64,
                 shuffle=True,
                 callbacks=[early_stopping, time_history, lr_scheduler],
             )
