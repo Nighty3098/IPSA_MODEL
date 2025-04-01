@@ -58,13 +58,32 @@ def preprocess_data(df):
 def create_sequences(data_list, target_col, window_size=WINDOW_SIZE):
     X, y = [], []
 
+    # Handle both single company data and list of company data
+    if isinstance(data_list, pd.DataFrame):
+        data_list = [data_list]
+
     for company_data in data_list:
         company_values = company_data.values
+        if len(company_values) < window_size + 1:
+            continue
+            
         for i in range(len(company_values) - window_size - 1):
             X.append(company_values[i : i + window_size, :])
             y.append(company_values[i + window_size, target_col])
 
+    if not X:
+        raise ValueError(f"Could not create sequences. Input data length must be greater than window_size ({window_size})")
+
     return np.array(X), np.array(y)
+
+def prepare_single_sequence(data, window_size=WINDOW_SIZE):
+    """Prepare a single sequence for prediction"""
+    if len(data) < window_size:
+        raise ValueError(f"Input data length ({len(data)}) must be at least equal to window_size ({window_size})")
+    
+    # Take the last window_size elements
+    sequence = data[-window_size:].values
+    return np.array([sequence])  # Shape: (1, window_size, features)
 
 
 def build_model(input_shape):
