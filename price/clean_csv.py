@@ -1,45 +1,20 @@
 import pandas as pd
 
-def clean_csv(input_file, output_file):
-    # Загружаем данные из CSV файла
-    try:
-        data = pd.read_csv(input_file, parse_dates=['Date'], index_col='Date')
-    except FileNotFoundError:
-        print(f"Файл {input_file} не найден.")
-        return
-    except Exception as e:
-        print(f"Ошибка при загрузке файла: {e}")
-        return
+# Задайте путь к вашему CSV файлу
+input_file = "data.csv"  # замените на имя вашего файла
+output_file = "output.csv"  # имя файла для сохранения очищенных данных
 
-    # Выводим информацию о загруженных данных
-    print("Исходные данные:")
-    print(data.info())
+# Чтение CSV файла
+df = pd.read_csv(input_file)
 
-    # Удаляем столбцы, которые не нужны для обучения
-    columns_to_drop = [
-        "('Open', 'INDEX')", "('Open', 'MOEX')", "('Close', 'INDEX')", "('Close', 'MOEX')",
-        "('Ticker', '')", "('High', 'INDEX')", "('High', 'MOEX')", "('Low', 'INDEX')",
-        "('Low', 'MOEX')", "('Adj Close', 'INDEX')", "('Adj Close', 'MOEX')", "('Volume', 'INDEX')",
-        "('Volume', 'MOEX')", "('Open', 'RTS')", "('Close', 'RTS')", "('High', 'RTS')",
-        "('Low', 'RTS')", "('Adj Close', 'RTS')", "('Volume', 'RTS')", "('Open', 'MICEX10')",
-        "('Close', 'MICEX10')", "('High', 'MICEX10')", "('Low', 'MICEX10')", "('Adj Close', 'MICEX10')",
-        "('Volume', 'MICEX10')"
-    ]
-    
-    data.drop(columns=columns_to_drop, errors='ignore', inplace=True)
+# Оставляем только нужные колонки
+columns_to_keep = ["Ticker", "Date", "Close", "High", "Low", "Open", "Volume"]
+df_cleaned = df[columns_to_keep]
 
-    # Удаляем строки с NaN значениями
-    data.dropna(inplace=True)
+# Удаляем строки с пустыми полями
+df_cleaned = df_cleaned.dropna()
 
-    # Выводим информацию о очищенных данных
-    print("Очищенные данные:")
-    print(data.info())
+# Сохранение очищенного DataFrame в новый CSV файл
+df_cleaned.to_csv(output_file, index=False)
 
-    # Сохраняем очищенные данные в новый CSV файл
-    data.to_csv(output_file)
-    print(f"Очищенные данные сохранены в {output_file}")
-
-if __name__ == "__main__":
-    input_csv_file = "combined_stock_data.csv"  # Укажите путь к вашему входному файлу
-    output_csv_file = "cleaned_stock_data.csv"   # Укажите путь к выходному файлу
-    clean_csv(input_csv_file, output_csv_file)
+print(f"Очищенный файл сохранен как {output_file}")
