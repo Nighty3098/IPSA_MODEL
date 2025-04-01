@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.callbacks import *
@@ -10,84 +11,118 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.models import Sequential
 
 WINDOW_SIZE = 60
-EPOCHS = 1000
-BATCH_SIZE = 64
+EPOCHS = 10000
+BATCH_SIZE = 32
 TICKER_COLUMN = "Ticker"
 
 
 def load_data(filepath):
     df = pd.read_csv(filepath, parse_dates=["Date"])
-    df.sort_values("Date", inplace=True)
+    df.sort_values(["Ticker", "Date"], inplace=True)
     return df
 
 
 def preprocess_data(df):
-    # Define the columns to keep
     numeric_cols = ["Close", "High", "Low", "Open", "Volume"]
-    
-    # Drop irrelevant columns and select only the numeric features
-    df = df.drop(columns=["Date", "Ticker"])
-    df = df[numeric_cols]  # Explicitly select desired columns
 
-    # Handle missing values
-    df = df.ffill().bfill()
+    scalers = {}
+    processed_dfs = []
 
-    # Data normalization
-    scaler = MinMaxScaler()
-    df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    for ticker in df[TICKER_COLUMN].unique():
+        try:
+            company_df = df[df[TICKER_COLUMN] == ticker].copy()
+            company_df = company_df.drop(columns=["Date", "Ticker"])
+            company_df = company_df[numeric_cols]
 
-    # Data type validation and conversion
-    if df.select_dtypes(exclude="number").any().any():
+            company_df = company_df.ffill().bfill()
+
+            scaler = MinMaxScaler()
+            scaled_data = scaler.fit_transform(company_df[numeric_cols])
+            company_df = pd.DataFrame(scaled_data, columns=numeric_cols)
+
+            scalers[ticker] = scaler
+            processed_dfs.append(company_df)
+        except Exception as e:
+            print(f"Error processing {ticker}: {str(e)}")
+            continue
+
+    if not processed_dfs:
+        raise ValueError("No data was successfully processed")
+
+    if any(df.select_dtypes(exclude="number").any().any() for df in processed_dfs):
         raise ValueError("Non-numeric data detected after processing")
-    df = df.astype("float32")
 
-    return df, scaler
+    return processed_dfs, scalers
 
 
-def create_sequences(data, target_col, window_size=WINDOW_SIZE):
+def create_sequences(data_list, target_col, window_size=WINDOW_SIZE):
     X, y = [], []
-    for i in range(len(data) - window_size - 1):
-        X.append(data[i : i + window_size, :])
-        y.append(data[i + window_size, target_col])
+
+    for company_data in data_list:
+        company_values = company_data.values
+        for i in range(len(company_values) - window_size - 1):
+            X.append(company_values[i : i + window_size, :])
+            y.append(company_values[i + window_size, target_col])
+
     return np.array(X), np.array(y)
 
 
 def build_model(input_shape):
-    model = Sequential(
-        [
-            Conv1D(
-                256, 5, activation="relu", padding="causal", input_shape=input_shape
-            ),
-            BatchNormalization(),
-            Conv1D(512, 5, activation="relu", padding="causal"),
-            MaxPooling1D(2),
-            BatchNormalization(),
-            Conv1D(1024, 3, activation="relu", padding="causal"),
-            Dropout(0.4),
-            # Bidirectional(LSTM(2048, return_sequences=True)),
-            # Bidirectional(LSTM(2048, return_sequences=True)),
-            Bidirectional(LSTM(1024, return_sequences=True)),
-            Bidirectional(LSTM(1024, return_sequences=True)),
-            Bidirectional(LSTM(512, return_sequences=True)),
-            GlobalMaxPooling1D(),
-            Dense(
-                2048,
-                activation="selu",
-                kernel_regularizer=tf.keras.regularizers.l2(0.001),
-            ),
-            BatchNormalization(),
-            Dropout(0.6),
-            Dense(1024, activation="relu"),
-            Dense(512, activation="relu"),
-            Dense(1),
-        ]
+    inputs = tf.keras.layers.Input(shape=input_shape)
+
+    x = tf.keras.layers.Conv1D(1024, 5, activation="relu", padding="causal")(inputs)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(512, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(512, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.MaxPooling1D(2)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(256, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(128, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.MaxPooling1D(2)(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+
+    x = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(256, return_sequences=True))(
+        x
+    )
+    x = tf.keras.layers.Dropout(0.4)(x)
+    x = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True))(
+        x
+    )
+    x = tf.keras.layers.Dropout(0.4)(x)
+
+    attention_output = tf.keras.layers.Attention(use_scale=True)(
+        [x, x]
     )
 
+    pooled_output = tf.keras.layers.GlobalMaxPooling1D()(attention_output)
+
+    x = tf.keras.layers.Dense(
+        1024, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.02)
+    )(pooled_output)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
+    x = tf.keras.layers.Dense(
+        512, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.01)
+    )(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.4)(x)
+    outputs = tf.keras.layers.Dense(1)(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=tf.keras.optimizers.AdamW(learning_rate=0.0001, weight_decay=0.001),
         loss="mse",
         metrics=["mae", "mse"],
     )
+
     return model
 
 
@@ -119,14 +154,16 @@ def main(filepath):
         device_name = "/CPU:0"
 
     df = load_data(filepath)
-    processed_df, scaler = preprocess_data(df)
 
-    joblib.dump(scaler, "stock_scaler.save")
+    print(df)
 
-    target_col = processed_df.columns.get_loc("Close")
-    data = processed_df.values
+    processed_dfs, scalers = preprocess_data(df)
 
-    X, y = create_sequences(data, target_col)
+    # Изменяем имя файла для сохранения скейлеров
+    joblib.dump(scalers, "stock_scaler.save")
+
+    target_col = processed_dfs[0].columns.get_loc("Close")
+    X, y = create_sequences(processed_dfs, target_col)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, shuffle=False
     )
@@ -158,6 +195,10 @@ def main(filepath):
     print(f"Test Loss: {test_metrics[0]:.4f}")
     print(f"Test MAE: {test_metrics[1]:.4f}")
     print(f"Test MSE: {test_metrics[2]:.4f}")
+
+    y_pred = model.predict(X_test)
+    r2 = r2_score(y_test, y_pred)
+    print(f"\nTest Accuracy (R² score): {r2 * 100:.2f}%")
 
 
 if __name__ == "__main__":
