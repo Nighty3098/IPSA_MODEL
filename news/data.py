@@ -85,28 +85,69 @@ data = {
         """
         (CNN Business) - Apple Inc. reported a record revenue of $123 billion for Q1 2024, driven by strong sales of its iPhone models and services segment. However, analysts warn that supply chain disruptions could impact future growth as demand for electronic devices continues to rise globally.
         """,
+        # Новые записи
+        """
+        (Reuters) - Tesla (NASDAQ:TSLA) announced a new factory opening in Shanghai, China, aimed at increasing production capacity for its Model Y vehicles to meet growing demand in Asia. The facility is expected to begin operations by mid-2025.
+        """,
+        """
+        (Bloomberg) - General Motors reported a 10% decline in Q1 2025 sales due to supply chain bottlenecks and a shift in consumer preference toward electric vehicles, where the company has been slower to adapt compared to competitors.
+        """,
+        """
+        (Reuters) - The European Union has imposed new tariffs on Chinese electric vehicle imports, a move that could benefit European automakers like Stellantis and Volkswagen but risks escalating trade tensions with China.
+        """,
+        """
+        (Financial Times) - Novo Nordisk, parent of Novo Holdings, reported a 25% increase in Wegovy sales in Q1 2025, driven by heightened demand following the Catalent acquisition, boosting its stock price significantly.
+        """,
+        """
+        (CNN Business) - U.S. Steel shares dropped 5% after reports surfaced that the Biden administration is leaning toward blocking its acquisition by Nippon Steel, citing potential risks to domestic steel production capacity.
+        """,
+        """
+        (Reuters) - General Motors announced a $3 billion investment in a new battery plant in Tennessee, aiming to strengthen its position in the electric vehicle market. The facility is expected to begin production in late 2026 and create 1,500 jobs.
+        """,
+        """
+        (Bloomberg) - Boeing reported a $6.1 billion loss for Q3 2024, citing ongoing delays in its 777X program and labor strikes. The company plans to cut 17,000 jobs to stabilize its finances.
+        """,
+        """
+        (Reuters) - Samsung Electronics unveiled its next-generation foldable smartphones, projecting a 15% increase in sales compared to last year. The launch comes amid growing demand for innovative mobile devices.
+        """,
+        """
+        (Financial Times) - Volkswagen AG warned of potential plant closures in Germany due to rising energy costs and declining demand for its electric vehicles in Europe, putting thousands of jobs at risk.
+        """,
+        """
+        (CNN Business) - Microsoft reported a 20% increase in cloud revenue for Q1 2025, driven by strong demand for its Azure platform. The company plans to expand its data center network in Asia to meet growing needs.
+        """
     ],
     "label": [
-        0,
-        1,
-        1,
-        1,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        1,
-        0,
-        1,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-    ],  # 1 - положительное влияние, 0 - отрицательное влияние
+        0,  # Italy-Stellantis tensions
+        1,  # Novo Holdings-Catalent deal completion
+        1,  # Berkshire Hills-Brookline merger talks
+        1,  # Tesla price increase
+        0,  # Fiat Q3 decline
+        0,  # Stellantis Italy production collapse
+        0,  # Stellantis earnings forecast cut
+        1,  # Stellantis pledge to maintain Italy plants
+        0,  # Stellantis H1 revenue drop
+        0,  # Stellantis Q3 revenue drop
+        0,  # Fitch negative outlook for Stellantis
+        1,  # Stellantis new vehicle launches
+        0,  # Analysts predict Stellantis stock pressure
+        1,  # Italy-Stellantis improved relations post-Tavares
+        0,  # Nippon Steel-U.S. Steel deal uncertainty
+        0,  # ABC News settlement with Trump
+        0,  # Nippon Steel commitment amid scrutiny
+        0,  # Biden to block Nippon Steel-U.S. Steel deal
+        1,  # Ford EV investment
+        1,  # Amazon new fulfillment center
+        1,  # Apple record Q1 revenue
+        1,  # Tesla new factory in Shanghai
+        0,  # GM sales decline
+        1,  # EU tariffs benefiting Stellantis
+        1,  # Novo Nordisk Wegovy sales surge
+        0,   # U.S. Steel shares drop
+        1,  # General Motors
+        0,  # Boeing
+        1,  # Samsung
+        0,  # Volkswagen
+        1   # Microsoft
+    ]
 }

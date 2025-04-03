@@ -33,15 +33,17 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-def create_model(vocab_size=MAX_WORDS, embedding_dim=128, max_len=MAX_LEN):
+def create_model(vocab_size=MAX_WORDS, embedding_dim=256, max_len=MAX_LEN):
     """Create and return a sentiment analysis LSTM model."""
     model = Sequential([
         Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=max_len),
+        Bidirectional(LSTM(256, return_sequences=True)),
+        Dropout(0.3),
         Bidirectional(LSTM(128, return_sequences=True)),
         Dropout(0.3),
-        LSTM(64),
+        Bidirectional(LSTM(64, return_sequences=True)),
         Dropout(0.3),
-        Dense(32, activation='relu'),
+        LSTM(32),
         Dropout(0.2),
         Dense(1, activation='sigmoid')
     ])
