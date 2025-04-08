@@ -11,10 +11,8 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.models import Sequential
 
 WINDOW_SIZE = 60
-EPOCHS = 10000
-BATCH_SIZE = 32
-TICKER_COLUMN = "Ticker"
-
+EPOCHS = 100
+BATCH_SIZE = 256
 
 def load_data(filepath):
     df = pd.read_csv(filepath, parse_dates=["Date"])
@@ -23,14 +21,14 @@ def load_data(filepath):
 
 
 def preprocess_data(df):
-    numeric_cols = ["Close", "High", "Low", "Open", "Volume"]
+    numeric_cols = ["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
 
     scalers = {}
     processed_dfs = []
 
-    for ticker in df[TICKER_COLUMN].unique():
+    for ticker in df["Ticker"].unique():
         try:
-            company_df = df[df[TICKER_COLUMN] == ticker].copy()
+            company_df = df[df["Ticker"] == ticker].copy()
             company_df = company_df.drop(columns=["Date", "Ticker"])
             company_df = company_df[numeric_cols]
 
@@ -58,7 +56,6 @@ def preprocess_data(df):
 def create_sequences(data_list, target_col, window_size=WINDOW_SIZE):
     X, y = [], []
 
-    # Handle both single company data and list of company data
     if isinstance(data_list, pd.DataFrame):
         data_list = [data_list]
 
@@ -81,7 +78,6 @@ def prepare_single_sequence(data, window_size=WINDOW_SIZE):
     if len(data) < window_size:
         raise ValueError(f"Input data length ({len(data)}) must be at least equal to window_size ({window_size})")
     
-    # Take the last window_size elements
     sequence = data[-window_size:].values
     return np.array([sequence])  # Shape: (1, window_size, features)
 
@@ -89,17 +85,7 @@ def prepare_single_sequence(data, window_size=WINDOW_SIZE):
 def build_model(input_shape):
     inputs = tf.keras.layers.Input(shape=input_shape)
 
-    x = tf.keras.layers.Conv1D(1024, 5, activation="relu", padding="causal")(inputs)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(512, 5, activation="relu", padding="causal")(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(512, 5, activation="relu", padding="causal")(x)
-    x = tf.keras.layers.MaxPooling1D(2)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(256, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.Conv1D(256, 5, activation="relu", padding="causal")(inputs)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Conv1D(128, 5, activation="relu", padding="causal")(x)
@@ -178,7 +164,6 @@ def main(filepath):
 
     processed_dfs, scalers = preprocess_data(df)
 
-    # Изменяем имя файла для сохранения скейлеров
     joblib.dump(scalers, "stock_scaler.save")
 
     target_col = processed_dfs[0].columns.get_loc("Close")
@@ -221,4 +206,4 @@ def main(filepath):
 
 
 if __name__ == "__main__":
-    main("cleaned_stock_data.csv")
+    main("combined_stock_data.csv")
