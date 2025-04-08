@@ -1,23 +1,33 @@
-import pandas as pd
-import yfinance as yf
+import os
+from datetime import datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
 
-def create_dataset(tickers, file_path):
-    combined_data = pd.DataFrame()
+
+def create_dataset(tickers):
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365 * 15)
+
+    all_data = []
 
     for ticker in tickers:
-        temp = yf.Ticker(ticker).history('10y')
-        temp['Ticker'] = ticker
-        combined_data = pd.concat([combined_data, temp])
+        print(f"Downloading data for {ticker}...")
+        data = yf.download(ticker, start=start_date, end=end_date.strftime("%Y-%m-%d"))
+
+        data["Ticker"] = ticker
+
+        print(data)
+
+        all_data.append(
+            data[["Open", "Close", "Ticker", "High", "Low", "Adj Close", "Volume"]]
+        )
+
+    combined_data = pd.concat(all_data)
 
     combined_data.reset_index(inplace=True)
-    combined_data.fillna(0, inplace=True)
 
-    combined_data.to_csv(file_path, index=False)
-
-    print(f'Downloaded data for {len(tickers)} tickers and saved to {file_path}')
+    return combined_data
 
 tickers = [
     "AAPL",  # Apple Inc.
@@ -69,7 +79,12 @@ tickers = [
     "MICEX10 Index",  # Индекс ММВБ-10
 ]
 
-file_path = "combined_stock_data.csv"
-dataset = create_dataset(tickers, file_path)
+dataset = create_dataset(tickers)
 
-print(f"Dataset created and saved as {file_path}")
+home_dir = os.path.expanduser("~")
+# file_path = os.path.join(home_dir, "IPSA", "combined_stock_data.csv")
+file_path = "combined_stock_data.csv"
+
+dataset.to_csv(file_path, index=False)
+
+print("Dataset created and saved as 'combined_stock_data.csv'.")
