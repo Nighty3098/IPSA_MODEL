@@ -8,7 +8,7 @@ def create_dataset(tickers, file_path):
     combined_data = pd.DataFrame()
 
     for ticker in tickers:
-        temp = yf.Ticker(ticker).history('5y')
+        temp = yf.Ticker(ticker).history('100y')
         temp['Ticker'] = ticker
         combined_data = pd.concat([combined_data, temp])
 
