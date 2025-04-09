@@ -11,8 +11,8 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.models import Sequential
 
 WINDOW_SIZE = 60
-EPOCHS = 100
-BATCH_SIZE = 256
+EPOCHS = 1000
+BATCH_SIZE = 128
 
 def load_data(filepath):
     df = pd.read_csv(filepath, parse_dates=["Date"])
@@ -85,7 +85,16 @@ def prepare_single_sequence(data, window_size=WINDOW_SIZE):
 def build_model(input_shape):
     inputs = tf.keras.layers.Input(shape=input_shape)
 
-    x = tf.keras.layers.Conv1D(256, 5, activation="relu", padding="causal")(inputs)
+    x = tf.keras.layers.Conv1D(2048, 5, activation="relu", padding="causal")(inputs)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(1024, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(512, 5, activation="relu", padding="causal")(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Conv1D(256, 5, activation="relu", padding="causal")(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.Dropout(0.3)(x)
     x = tf.keras.layers.Conv1D(128, 5, activation="relu", padding="causal")(x)
