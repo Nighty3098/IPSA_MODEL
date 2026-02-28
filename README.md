@@ -53,14 +53,14 @@ matplotlib>=3.7.0
 
 ```
 price/
-├── combined_stock_data.csv      # Input dataset (user‑provided)
-├── stock_model.keras             # Final trained model
-├── best_model.keras              # Best checkpoint (by val_loss)
+├── combined_stock_data.csv        # Input dataset (user‑provided)
+├── stock_model.keras              # Final trained model
+├── best_model.keras               # Best checkpoint (by val_loss)
 ├── stock_scaler.save              # Saved MinMaxScaler per ticker
 ├── training_log.csv               # Epoch‑wise training metrics
 ├── training_metrics.png           # Plot of loss & metrics
 ├── logs/                          # TensorBoard logs
-└── train.py                        # Main training script
+└── train_model.py                 # Main training script
 ```
 
 ---
@@ -112,7 +112,7 @@ These can be adjusted directly in the source file.
 2. **Run the script**:
 
    ```bash
-   python train.py
+   python train_model.py
    ```
 
    You will be prompted to choose the device:
