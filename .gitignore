@@ -9,3 +9,4 @@ price/combined_stock_data.csv
 price/model_plot.png
 price/training_history.png
 price/training_time.png
+/news/__pycache__
