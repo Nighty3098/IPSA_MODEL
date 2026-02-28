@@ -6,6 +6,7 @@ import tensorflow as tf
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras import Model, layers, regularizers
 from tensorflow.keras.callbacks import *
 from tensorflow.keras.layers import *
 from tensorflow.keras.models import Sequential
@@ -14,6 +15,7 @@ WINDOW_SIZE = 60
 EPOCHS = 1000
 BATCH_SIZE = 128
 
+
 def load_data(filepath):
     df = pd.read_csv(filepath, parse_dates=["Date"])
     df.sort_values(["Ticker", "Date"], inplace=True)
@@ -21,7 +23,15 @@ def load_data(filepath):
 
 
 def preprocess_data(df):
-    numeric_cols = ["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]
+    numeric_cols = [
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Volume",
+        "Dividends",
+        "Stock Splits",
+    ]
 
     scalers = {}
     processed_dfs = []
@@ -63,78 +73,98 @@ def create_sequences(data_list, target_col, window_size=WINDOW_SIZE):
         company_values = company_data.values
         if len(company_values) < window_size + 1:
             continue
-            
+
         for i in range(len(company_values) - window_size - 1):
             X.append(company_values[i : i + window_size, :])
             y.append(company_values[i + window_size, target_col])
 
     if not X:
-        raise ValueError(f"Could not create sequences. Input data length must be greater than window_size ({window_size})")
+        raise ValueError(
+            f"Could not create sequences. Input data length must be greater than window_size ({window_size})"
+        )
 
     return np.array(X), np.array(y)
+
 
 def prepare_single_sequence(data, window_size=WINDOW_SIZE):
     """Prepare a single sequence for prediction"""
     if len(data) < window_size:
-        raise ValueError(f"Input data length ({len(data)}) must be at least equal to window_size ({window_size})")
-    
+        raise ValueError(
+            f"Input data length ({len(data)}) must be at least equal to window_size ({window_size})"
+        )
+
     sequence = data[-window_size:].values
     return np.array([sequence])  # Shape: (1, window_size, features)
 
 
-def build_model(input_shape):
-    inputs = tf.keras.layers.Input(shape=input_shape)
+def build_model(input_shape, num_heads=4, ff_dim=128):
+    inputs = layers.Input(shape=input_shape)
 
-    x = tf.keras.layers.Conv1D(2048, 5, activation="relu", padding="causal")(inputs)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(1024, 5, activation="relu", padding="causal")(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(512, 5, activation="relu", padding="causal")(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(256, 5, activation="relu", padding="causal")(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
-    x = tf.keras.layers.Conv1D(128, 5, activation="relu", padding="causal")(x)
-    x = tf.keras.layers.MaxPooling1D(2)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.3)(x)
+    x = layers.GaussianNoise(0.01)(inputs)
 
-    x = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(256, return_sequences=True))(
-        x
-    )
-    x = tf.keras.layers.Dropout(0.4)(x)
-    x = tf.keras.layers.Bidirectional(tf.keras.layers.GRU(128, return_sequences=True))(
-        x
-    )
-    x = tf.keras.layers.Dropout(0.4)(x)
-
-    attention_output = tf.keras.layers.Attention(use_scale=True)(
-        [x, x]
-    )
-
-    pooled_output = tf.keras.layers.GlobalMaxPooling1D()(attention_output)
-
-    x = tf.keras.layers.Dense(
-        1024, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.02)
-    )(pooled_output)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.5)(x)
-    x = tf.keras.layers.Dense(
-        512, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.01)
+    conv1 = layers.Conv1D(
+        filters=64, kernel_size=7, padding="causal", activation="relu"
     )(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.Dropout(0.4)(x)
-    outputs = tf.keras.layers.Dense(1)(x)
+    norm1 = layers.LayerNormalization()(conv1)
+    x = layers.Dropout(0.2)(norm1)
 
-    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    conv2 = layers.Conv1D(
+        filters=128, kernel_size=5, padding="causal", activation="relu"
+    )(x)
+    norm2 = layers.LayerNormalization()(conv2)
+    if x.shape[-1] != 128:
+        x_proj = layers.Conv1D(128, kernel_size=1, padding="same")(x)
+    else:
+        x_proj = x
+    x = layers.Add()([x_proj, norm2])
+    x = layers.Dropout(0.2)(x)
+
+    conv3 = layers.Conv1D(
+        filters=256, kernel_size=5, padding="causal", activation="relu"
+    )(x)
+    norm3 = layers.LayerNormalization()(conv3)
+    if x.shape[-1] != 256:
+        x_proj = layers.Conv1D(256, kernel_size=1, padding="same")(x)
+    else:
+        x_proj = x
+    x = layers.Add()([x_proj, norm3])
+    x = layers.Dropout(0.2)(x)
+
+    x = layers.MaxPooling1D(pool_size=2)(x)
+
+    attn_output = layers.MultiHeadAttention(num_heads=num_heads, key_dim=ff_dim)(x, x)
+    attn_output = layers.Dropout(0.3)(attn_output)
+    x = layers.Add()([x, attn_output])
+    x = layers.LayerNormalization()(x)
+
+    ffn = layers.Dense(ff_dim * 2, activation="relu")(x)
+    ffn = layers.Dense(x.shape[-1])(ffn)
+    ffn = layers.Dropout(0.3)(ffn)
+    x = layers.Add()([x, ffn])
+    x = layers.LayerNormalization()(x)
+
+    x = layers.GlobalAveragePooling1D()(x)
+
+    x = layers.Dense(256, activation="relu", kernel_regularizer=regularizers.l2(0.001))(
+        x
+    )
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.4)(x)
+
+    x = layers.Dense(128, activation="relu", kernel_regularizer=regularizers.l2(0.001))(
+        x
+    )
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.3)(x)
+
+    outputs = layers.Dense(1)(x)
+
+    model = Model(inputs=inputs, outputs=outputs)
 
     model.compile(
-        optimizer=tf.keras.optimizers.AdamW(learning_rate=0.0001, weight_decay=0.001),
+        optimizer=tf.keras.optimizers.AdamW(learning_rate=1e-3, weight_decay=1e-4),
         loss="mse",
-        metrics=["mae", "mse"],
+        metrics=["mae", "mse", "mape"],
     )
 
     return model
