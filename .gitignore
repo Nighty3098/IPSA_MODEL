@@ -5,7 +5,7 @@
 /news/tokenizer.pickle
 /news/sentiment_model.h5
 /news/__pycache__/
-price/combined_stock_data.csv
+combined_stock_data.csv
 price/model_plot.png
 price/training_history.png
 price/training_time.png
